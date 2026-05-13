@@ -1,0 +1,46 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+venvb/
+*.egg-info/
+dist/
+build/
+.env
+
+# ===== Node.js =====
+node_modules/
+.next/
+out/
+npm-debug.log*
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Temp files =====
+temp_audio/
+temp_uploads/
+*.db
+career_db/
+data/
+
+# ===== Large binaries =====
+ffmpeg.exe
+
+# ===== Gemini / AI =====
+.gemini/
+AGENTS.md
+CLAUDE.md
+
+# ===== User data =====
+*.pdf
