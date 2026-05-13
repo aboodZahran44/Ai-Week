@@ -1,3 +1,6 @@
+
+
+
 <p align="center">
   <h1 align="center">🚀 AI Career Agent</h1>
   <p align="center">
@@ -28,7 +31,7 @@ The system acts as a complete career assistant:
 
 ## 🎥 Demo & Screenshots
 
-> After running the app, open [http://localhost:3000](http://localhost:3000) in your browser.
+> https://github.com/user-attachments/assets/277d0f31-486e-4151-a1bf-21f51856918f
 
 ### Flow
 
