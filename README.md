@@ -280,14 +280,14 @@ Popular alternatives: `llama3.1`, `gemma3:4b`, `mistral`, `phi3`
 
 ## 👥 Team
 
-> Haytham Ali Albaqoum,
+> Haytham Ali Albaqoum-
 > Abd Alrahman Nidal Zahran
 
 ---
 
 ## 📄 License
 
-This project was built for the **AI Week Competition**.
+This project was built for the **AI Week Hackathon**.
 
 ---
 
