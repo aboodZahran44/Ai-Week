@@ -3,13 +3,84 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
+// ============ Section Config: icons, colors per persona section ============
+const SECTION_CONFIG = {
+  "persona summary": {
+    icon: "👤",
+    color: "indigo",
+    bg: "bg-indigo-500/10",
+    border: "border-indigo-500/20",
+    text: "text-indigo-400",
+  },
+  skills: {
+    icon: "⚡",
+    color: "emerald",
+    bg: "bg-emerald-500/10",
+    border: "border-emerald-500/20",
+    text: "text-emerald-400",
+  },
+  "code analysis": {
+    icon: "🔍",
+    color: "purple",
+    bg: "bg-purple-500/10",
+    border: "border-purple-500/20",
+    text: "text-purple-400",
+  },
+  "project complexity": {
+    icon: "🏗️",
+    color: "amber",
+    bg: "bg-amber-500/10",
+    border: "border-amber-500/20",
+    text: "text-amber-400",
+  },
+  "cv vs github verification": {
+    icon: "✅",
+    color: "green",
+    bg: "bg-green-500/10",
+    border: "border-green-500/20",
+    text: "text-green-400",
+  },
+  "final readiness score": {
+    icon: "🏆",
+    color: "yellow",
+    bg: "bg-yellow-500/10",
+    border: "border-yellow-500/20",
+    text: "text-yellow-400",
+  },
+  "job search queries": {
+    icon: "🔎",
+    color: "blue",
+    bg: "bg-blue-500/10",
+    border: "border-blue-500/20",
+    text: "text-blue-400",
+  },
+};
+
+function getSectionConfig(title) {
+  const lower = title.toLowerCase();
+  for (const [key, config] of Object.entries(SECTION_CONFIG)) {
+    if (lower.includes(key)) return config;
+  }
+  return {
+    icon: "📋",
+    color: "zinc",
+    bg: "bg-zinc-500/10",
+    border: "border-zinc-500/20",
+    text: "text-zinc-400",
+  };
+}
+
 export default function ResultsPage({ persona, jobs, onSelectJob, isLoading }) {
-  const [expandedPersona, setExpandedPersona] = useState(false);
+  const [expandedPersona, setExpandedPersona] = useState(true);
   const [selectedJobIndex, setSelectedJobIndex] = useState(null);
 
   const pageVariants = {
     initial: { opacity: 0, y: 30 },
-    animate: { opacity: 1, y: 0, transition: { duration: 0.5, staggerChildren: 0.1 } },
+    animate: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.5, staggerChildren: 0.1 },
+    },
     exit: { opacity: 0, y: -30, transition: { duration: 0.3 } },
   };
 
@@ -18,7 +89,7 @@ export default function ResultsPage({ persona, jobs, onSelectJob, isLoading }) {
     animate: { opacity: 1, y: 0 },
   };
 
-  // Parse persona sections for a nicer display
+  // Parse persona sections
   const personaSections = parsePersonaSections(persona);
 
   return (
@@ -43,11 +114,12 @@ export default function ResultsPage({ persona, jobs, onSelectJob, isLoading }) {
         </p>
       </div>
 
-      {/* Persona Card */}
+      {/* ========== Persona Card (Big Container) ========== */}
       <motion.div
         variants={cardVariants}
         className="glass-card p-6 sm:p-8 mb-10 glow-accent"
       >
+        {/* Header Row */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center">
@@ -79,28 +151,66 @@ export default function ResultsPage({ persona, jobs, onSelectJob, isLoading }) {
           </button>
         </div>
 
+        {/* Persona Sections Grid */}
         <AnimatePresence>
           <motion.div
             initial={false}
-            animate={{ height: expandedPersona ? "auto" : "200px" }}
+            animate={{ height: expandedPersona ? "auto" : "220px" }}
             className="overflow-hidden relative"
           >
-            {/* Persona content as formatted sections */}
             {personaSections.length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2">
-                {personaSections.map((section, i) => (
-                  <div
-                    key={i}
-                    className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800"
-                  >
-                    <h4 className="text-sm font-semibold text-indigo-400 mb-2 uppercase tracking-wider">
-                      {section.title}
-                    </h4>
-                    <p className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">
-                      {section.content}
-                    </p>
-                  </div>
-                ))}
+                {personaSections.map((section, i) => {
+                  const config = getSectionConfig(section.title);
+                  return (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.06 }}
+                      className={`relative overflow-hidden rounded-xl border ${config.border} bg-zinc-900/50 p-5 transition-all duration-200 hover:bg-zinc-900/80`}
+                    >
+                      {/* Subtle glow orb */}
+                      <div
+                        className={`absolute -top-6 -right-6 w-20 h-20 rounded-full ${config.bg} blur-2xl pointer-events-none opacity-60`}
+                      />
+
+                      {/* Section Header */}
+                      <div className="flex items-center gap-2.5 mb-3 relative z-10">
+                        <span
+                          className={`w-8 h-8 rounded-lg ${config.bg} border ${config.border} flex items-center justify-center text-sm`}
+                        >
+                          {config.icon}
+                        </span>
+                        <h4
+                          className={`text-sm font-semibold ${config.text} uppercase tracking-wider`}
+                        >
+                          {section.title}
+                        </h4>
+                      </div>
+
+                      {/* Section Content */}
+                      <div className="relative z-10 text-sm text-zinc-300 leading-relaxed">
+                        {section.items.length > 0 ? (
+                          <ul className="space-y-1.5">
+                            {section.items.map((item, j) => (
+                              <li key={j} className="flex items-start gap-2">
+                                <span
+                                  className={`mt-1.5 w-1.5 h-1.5 rounded-full ${config.bg.replace("/10", "/50")} flex-shrink-0`}
+                                />
+                                <span>{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="whitespace-pre-wrap">
+                            {section.content}
+                          </p>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
             ) : (
               <p className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">
@@ -108,21 +218,23 @@ export default function ResultsPage({ persona, jobs, onSelectJob, isLoading }) {
               </p>
             )}
 
-            {/* Gradient fade for collapsed */}
+            {/* Gradient fade when collapsed */}
             {!expandedPersona && (
-              <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[#18181b] to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[rgba(24,24,27,0.95)] to-transparent pointer-events-none" />
             )}
           </motion.div>
         </AnimatePresence>
       </motion.div>
 
-      {/* Jobs Header */}
+      {/* ========== Jobs Section ========== */}
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
           <span className="text-lg">💼</span>
         </div>
         <div>
-          <h3 className="text-xl font-semibold text-white">Matched Positions</h3>
+          <h3 className="text-xl font-semibold text-white">
+            Matched Positions
+          </h3>
           <p className="text-sm text-zinc-400">
             Select a job to start your virtual interview
           </p>
@@ -172,7 +284,9 @@ export default function ResultsPage({ persona, jobs, onSelectJob, isLoading }) {
                   <motion.div
                     className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 rounded-full"
                     initial={{ width: 0 }}
-                    animate={{ width: `${extractMatchScore(job.analysis)}%` }}
+                    animate={{
+                      width: `${extractMatchScore(job.analysis)}%`,
+                    }}
                     transition={{ delay: 0.5 + index * 0.1, duration: 1 }}
                   />
                 </div>
@@ -292,16 +406,56 @@ export default function ResultsPage({ persona, jobs, onSelectJob, isLoading }) {
 function parsePersonaSections(text) {
   if (!text) return [];
 
-  const sectionRegex = /# ([A-Z\s&\/]+)\n([\s\S]*?)(?=\n# |$)/gi;
   const sections = [];
-  let match;
+  // Match both # HEADER and **HEADER** formats
+  const parts = text.split(/(?:^|\n)(?:#{1,2}\s*|(?:\*\*))([A-Z][A-Z\s&\/\-]+?)(?:\*\*|)\s*\n/i);
 
-  while ((match = sectionRegex.exec(text)) !== null) {
-    const title = match[1].trim();
-    const content = match[2].trim();
-    if (content) {
-      sections.push({ title, content });
+  // Try splitting by bold markers or # headers
+  const lines = text.split("\n");
+  let currentSection = null;
+
+  for (const line of lines) {
+    // Match: # SECTION NAME, ## SECTION NAME, **SECTION NAME**
+    const headerMatch = line.match(
+      /^(?:#{1,3}\s*|\*\*\s*)([A-Z][A-Z\s&\/\-:]+?)(?:\s*\*\*|\s*)$/i
+    );
+
+    if (headerMatch && headerMatch[1].trim().length > 2) {
+      // Save previous section
+      if (currentSection && (currentSection.content.trim() || currentSection.items.length > 0)) {
+        sections.push({ ...currentSection });
+      }
+      currentSection = {
+        title: headerMatch[1].replace(/[*#]/g, "").trim(),
+        content: "",
+        items: [],
+      };
+    } else if (currentSection) {
+      const trimmed = line.trim();
+      // Detect bullet points
+      if (trimmed.match(/^[\*\-•+]\s+/)) {
+        currentSection.items.push(
+          trimmed.replace(/^[\*\-•+]\s+/, "")
+        );
+      } else if (trimmed.match(/^\+\s+/)) {
+        // Sub-bullet with +
+        currentSection.items.push(
+          "  → " + trimmed.replace(/^\+\s+/, "")
+        );
+      } else if (trimmed) {
+        // If we already have items, add as item; otherwise append to content
+        if (currentSection.items.length > 0) {
+          currentSection.items.push(trimmed);
+        } else {
+          currentSection.content += trimmed + "\n";
+        }
+      }
     }
+  }
+
+  // Push last section
+  if (currentSection && (currentSection.content.trim() || currentSection.items.length > 0)) {
+    sections.push(currentSection);
   }
 
   return sections;
