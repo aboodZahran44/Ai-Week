@@ -111,8 +111,8 @@ Before running the project, make sure you have the following installed:
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/ai-career-agent.git
-cd ai-career-agent
+git clone https://github.com/aboodZahran44/Ai-Week.git
+cd Ai-Week
 ```
 
 ### Step 2: Install & Pull the Ollama Model
@@ -280,7 +280,8 @@ Popular alternatives: `llama3.1`, `gemma3:4b`, `mistral`, `phi3`
 
 ## 👥 Team
 
-> Add your team members here
+> Haytham Ali Albaqoum
+> Abd Alrahman Nidal Zahran
 
 ---
 
