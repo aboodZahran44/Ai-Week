@@ -26,7 +26,7 @@ load_dotenv()
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 SERP_API_KEY = os.getenv("SERP_API_KEY", "")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3:4b")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
 
 # Create temp directories
 UPLOAD_DIR = Path("./temp_uploads")
@@ -247,8 +247,13 @@ async def chat_audio(
         raise HTTPException(status_code=500, detail=f"Failed to save audio: {str(e)}")
 
     try:
-        # Speech to text
-        user_text = speech_to_text(str(audio_path))
+        # Validate audio file is not empty/corrupt
+        audio_size = audio_path.stat().st_size
+        if audio_size < 1000:
+            raise ValueError("Audio recording is too short or empty. Please try recording again.")
+
+        # Speech to text (async to avoid blocking event loop)
+        user_text = await speech_to_text(str(audio_path))
 
         # Process the answer through the interview manager
         result = session.interview_manager.process_answer(user_text)

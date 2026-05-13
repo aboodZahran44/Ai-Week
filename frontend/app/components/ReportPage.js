@@ -501,6 +501,17 @@ function VerdictBadge({ text }) {
 // ==========================================================
 // Structured Report Parser
 // ==========================================================
+
+// Strip emoji and special unicode characters for cleaner keyword matching
+function stripEmojis(str) {
+  return str
+    .replace(
+      /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{27BF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/gu,
+      ""
+    )
+    .trim();
+}
+
 function parseStructuredReport(text) {
   const result = {
     verdict: "",
@@ -514,54 +525,104 @@ function parseStructuredReport(text) {
 
   if (!text) return result;
 
-  // Split by ### headers
-  const sectionRegex = /###\s*(.*?)(?=\n###|\n*$)/gs;
-  const sections = {};
-  let match;
+  // Debug: log the raw report to console for troubleshooting
+  console.log("[ReportParser] Raw report text:", text);
 
-  // Manually split sections
-  const parts = text.split(/###\s*/);
-  for (const part of parts) {
-    if (!part.trim()) continue;
-    const newlineIdx = part.indexOf("\n");
-    if (newlineIdx === -1) continue;
-    const title = part.substring(0, newlineIdx).trim();
-    const content = part.substring(newlineIdx).trim();
-    sections[title] = content;
+  // Split by markdown headings: #, ##, ### or **Bold Header** on its own line
+  // This regex matches lines like: "### 🎯 Header", "## Header", "# Header", "**Header**"
+  const sections = {};
+  const lines = text.split("\n");
+  let currentTitle = null;
+  let currentContent = [];
+
+  for (const line of lines) {
+    // Match markdown headings: # / ## / ###
+    const headingMatch = line.match(/^#{1,3}\s+(.+)/);
+    // Match bold-style headings: **Some Title**
+    const boldMatch = !headingMatch && line.match(/^\*\*(.+?)\*\*\s*$/);
+
+    if (headingMatch || boldMatch) {
+      // Save previous section
+      if (currentTitle !== null) {
+        sections[currentTitle] = currentContent.join("\n").trim();
+      }
+      currentTitle = stripEmojis(
+        (headingMatch ? headingMatch[1] : boldMatch[1]).trim()
+      );
+      currentContent = [];
+    } else {
+      currentContent.push(line);
+    }
+  }
+  // Save last section
+  if (currentTitle !== null) {
+    sections[currentTitle] = currentContent.join("\n").trim();
   }
 
-  // Parse each known section
+  console.log("[ReportParser] Parsed sections:", Object.keys(sections));
+
+  // Parse each known section by keyword matching
   for (const [title, content] of Object.entries(sections)) {
     const lower = title.toLowerCase();
 
     if (lower.includes("verdict") || lower.includes("eligibility")) {
-      // Extract the verdict label and detail
-      const lines = content
+      const contentLines = content
         .split("\n")
-        .map((l) => l.trim())
+        .map((l) => l.replace(/^[\*\-•]\s*/, "").trim())
         .filter(Boolean);
-      if (lines.length > 0) {
-        result.verdict = lines[0];
-        result.verdictDetail = lines.slice(1).join(" ");
+      if (contentLines.length > 0) {
+        result.verdict = contentLines[0];
+        result.verdictDetail = contentLines.slice(1).join(" ");
       }
-    } else if (lower.includes("hiring") || lower.includes("probability") || lower.includes("score")) {
-      // Extract percentage
-      const scoreMatch = content.match(/(\d{1,3}\s*%)/);
-      result.hiringScore = scoreMatch ? scoreMatch[1].trim() : content.trim();
+    } else if (
+      lower.includes("hiring") ||
+      lower.includes("probability") ||
+      lower.includes("score")
+    ) {
+      const scoreMatch = content.match(/(\d{1,3})\s*%/);
+      result.hiringScore = scoreMatch ? scoreMatch[1] + "%" : content.trim();
     } else if (lower.includes("strength")) {
       result.strengths = extractBulletPoints(content);
     } else if (lower.includes("weakness") || lower.includes("improvement")) {
       result.weaknesses = extractBulletPoints(content);
-    } else if (lower.includes("communication") || lower.includes("confidence")) {
+    } else if (
+      lower.includes("communication") ||
+      lower.includes("confidence")
+    ) {
       result.communication = content
         .split("\n")
-        .map((l) => l.replace(/^[\*\-]\s*/, "").trim())
+        .map((l) => l.replace(/^[\*\-•]\s*/, "").trim())
         .filter(Boolean)
         .join(" ");
-    } else if (lower.includes("roadmap") || lower.includes("action plan") || lower.includes("recommended action")) {
+    } else if (
+      lower.includes("roadmap") ||
+      lower.includes("action plan") ||
+      lower.includes("recommended action") ||
+      lower.includes("action")
+    ) {
       result.roadmap = extractBulletPoints(content);
     }
   }
+
+  // Fallback: if nothing was parsed, try to extract a hiring score from the full text
+  if (!result.hiringScore) {
+    const globalScore = text.match(/(\d{1,3})\s*%/);
+    if (globalScore) result.hiringScore = globalScore[1] + "%";
+  }
+
+  // Fallback: if no verdict, look for keywords in full text
+  if (!result.verdict) {
+    const lowerFull = text.toLowerCase();
+    if (lowerFull.includes("highly recommended") || lowerFull.includes("highly recommend")) {
+      result.verdict = "Highly Recommended";
+    } else if (lowerFull.includes("not recommended") || lowerFull.includes("not recommend")) {
+      result.verdict = "Not Recommended";
+    } else if (lowerFull.includes("recommended")) {
+      result.verdict = "Recommended with Conditions";
+    }
+  }
+
+  console.log("[ReportParser] Final parsed result:", result);
 
   return result;
 }
@@ -569,6 +630,6 @@ function parseStructuredReport(text) {
 function extractBulletPoints(text) {
   return text
     .split("\n")
-    .map((line) => line.replace(/^[\*\-•]\s*/, "").trim())
-    .filter((line) => line.length > 2);
+    .map((line) => line.replace(/^[\s]*[\*\-•]\s*/, "").trim())
+    .filter((line) => line.length > 2 && !line.startsWith("#"));
 }

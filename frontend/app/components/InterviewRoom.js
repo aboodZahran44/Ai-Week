@@ -12,12 +12,22 @@ export default function InterviewRoom({
   onEndInterview,
   finalReport,
 }) {
-  const [interviewStarted, setInterviewStarted] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [currentAudioUrl, setCurrentAudioUrl] = useState(null);
+  const [audioBlocked, setAudioBlocked] = useState(false);
+  const [blockedAudioUrl, setBlockedAudioUrl] = useState(null);
   const transcriptEndRef = useRef(null);
   const audioRef = useRef(null);
+  const hasStartedRef = useRef(false);
+
+  // Auto-start interview on mount
+  useEffect(() => {
+    if (!hasStartedRef.current) {
+      hasStartedRef.current = true;
+      onStartInterview();
+    }
+  }, []);
 
   // Auto-scroll transcript
   useEffect(() => {
@@ -40,18 +50,33 @@ export default function InterviewRoom({
     }
     setCurrentAudioUrl(url);
     setAudioPlaying(true);
+    setAudioBlocked(false);
     const audio = new Audio(url);
     audioRef.current = audio;
     audio.onended = () => setAudioPlaying(false);
     audio.onerror = () => setAudioPlaying(false);
-    audio.play().catch(() => setAudioPlaying(false));
+    audio.play().catch((err) => {
+      console.warn("[InterviewRoom] audio.play() blocked:", err.name, err.message);
+      setAudioPlaying(false);
+      // Browser autoplay policy blocked playback — show manual start button
+      if (err.name === "NotAllowedError" || err.name === "NotSupportedError") {
+        setAudioBlocked(true);
+        setBlockedAudioUrl(url);
+      }
+    });
   };
 
-  // Start interview
-  const handleStartInterview = async () => {
-    const result = await onStartInterview();
-    if (result) {
-      setInterviewStarted(true);
+  // User clicks the unblock button → replay the blocked audio
+  const handleUnblockAudio = () => {
+    setAudioBlocked(false);
+    if (blockedAudioUrl) {
+      const audio = new Audio(blockedAudioUrl);
+      audioRef.current = audio;
+      setAudioPlaying(true);
+      audio.onended = () => setAudioPlaying(false);
+      audio.onerror = () => setAudioPlaying(false);
+      audio.play().catch(() => setAudioPlaying(false));
+      setBlockedAudioUrl(null);
     }
   };
 
@@ -183,6 +208,50 @@ export default function InterviewRoom({
       exit="exit"
       className="mt-8"
     >
+      {/* Autoplay Blocked Overlay */}
+      <AnimatePresence>
+        {audioBlocked && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="glass-card p-8 max-w-sm text-center space-y-5"
+            >
+              <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                <span className="text-4xl">🔊</span>
+              </div>
+              <h3 className="text-xl font-bold text-zinc-100">
+                Audio Permission Required
+              </h3>
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                Your browser blocked automatic audio playback. Click the button
+                below to start the AI interviewer&apos;s audio.
+              </p>
+              <button
+                onClick={handleUnblockAudio}
+                className="btn-primary w-full py-3 text-base font-semibold"
+                id="start-audio-btn"
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Start Interview Audio
+                </span>
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Interview Header */}
       <div className="text-center mb-8">
         <motion.div
@@ -204,295 +273,214 @@ export default function InterviewRoom({
         </p>
       </div>
 
-      {!interviewStarted ? (
-        /* Pre-interview screen */
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-lg mx-auto glass-card p-10 text-center glow-accent"
-        >
-          {/* AI Avatar */}
-          <div className="relative w-24 h-24 mx-auto mb-6">
-            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-600/20 animate-pulse" />
-            <div className="relative w-full h-full rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-              <span className="text-4xl">🤖</span>
-            </div>
-          </div>
-
-          <h3 className="text-xl font-semibold text-white mb-3">
-            Ready to Begin?
-          </h3>
-          <p className="text-zinc-400 mb-6 text-sm leading-relaxed">
-            The AI interviewer will greet you and ask 3 targeted technical
-            questions based on your profile. Use your microphone to respond.
-          </p>
-
-          <div className="flex flex-col gap-3 text-left text-sm text-zinc-400 mb-8 bg-zinc-900/50 rounded-xl p-4 border border-zinc-800">
-            <div className="flex items-center gap-2">
-              <span className="text-indigo-400">1.</span>
-              AI asks a question (auto-plays audio)
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-indigo-400">2.</span>
-              Press the mic button to record your answer
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-indigo-400">3.</span>
-              Press stop, and the AI will process your response
-            </div>
-          </div>
-
-          <button
-            onClick={handleStartInterview}
-            disabled={isLoading}
-            className="btn-primary text-lg px-8 py-4 w-full"
-            id="begin-interview-btn"
-          >
-            {isLoading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg
-                  className="animate-spin w-5 h-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                  />
-                </svg>
-                Connecting...
-              </span>
-            ) : (
-              <span className="flex items-center justify-center gap-2">
-                🎙️ Start Interview
-              </span>
-            )}
-          </button>
-        </motion.div>
-      ) : (
-        /* Active Interview */
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Transcript Area */}
-          <div className="lg:col-span-2">
-            <div className="glass-card h-[500px] flex flex-col">
-              {/* Header */}
-              <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                  <span className="text-sm font-medium text-zinc-300">
-                    Live Interview
-                  </span>
-                </div>
-                <span className="text-xs text-zinc-500">
-                  {transcript.filter((m) => m.role === "user").length} / 3
-                  answered
+      {/* Active Interview */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Transcript Area */}
+        <div className="lg:col-span-2">
+          <div className="glass-card h-[500px] flex flex-col">
+            {/* Header */}
+            <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-sm font-medium text-zinc-300">
+                  Live Interview
                 </span>
               </div>
+              <span className="text-xs text-zinc-500">
+                {transcript.filter((m) => m.role === "user").length} / 3
+                answered
+              </span>
+            </div>
 
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                <AnimatePresence>
-                  {transcript.map((msg, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, y: 10, x: msg.role === "user" ? 10 : -10 }}
-                      animate={{ opacity: 1, y: 0, x: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className={`flex ${
-                        msg.role === "user" ? "justify-end" : "justify-start"
-                      }`}
-                    >
-                      <div
-                        className={`max-w-[80%] rounded-2xl px-5 py-3 ${
-                          msg.role === "user"
-                            ? "bg-indigo-500/20 border border-indigo-500/30 text-zinc-200"
-                            : "bg-zinc-800/50 border border-zinc-700 text-zinc-300"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-semibold uppercase tracking-wider">
-                            {msg.role === "user" ? (
-                              <span className="text-indigo-400">You</span>
-                            ) : (
-                              <span className="text-purple-400">
-                                AI Interviewer
-                              </span>
-                            )}
-                          </span>
-                          {msg.audioUrl && (
-                            <button
-                              onClick={() => playAudio(msg.audioUrl)}
-                              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-                            >
-                              🔊
-                            </button>
-                          )}
-                        </div>
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                          {msg.text}
-                        </p>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-
-                {isLoading && (
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <AnimatePresence>
+                {transcript.map((msg, index) => (
                   <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="flex justify-start"
+                    key={index}
+                    initial={{ opacity: 0, y: 10, x: msg.role === "user" ? 10 : -10 }}
+                    animate={{ opacity: 1, y: 0, x: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"
+                      }`}
                   >
-                    <div className="bg-zinc-800/50 border border-zinc-700 rounded-2xl px-5 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-1">
-                          <span
-                            className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
-                            style={{ animationDelay: "0ms" }}
-                          />
-                          <span
-                            className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
-                            style={{ animationDelay: "150ms" }}
-                          />
-                          <span
-                            className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
-                            style={{ animationDelay: "300ms" }}
-                          />
-                        </div>
-                        <span className="text-xs text-zinc-500">
-                          AI is thinking...
+                    <div
+                      className={`max-w-[80%] rounded-2xl px-5 py-3 ${msg.role === "user"
+                        ? "bg-indigo-500/20 border border-indigo-500/30 text-zinc-200"
+                        : "bg-zinc-800/50 border border-zinc-700 text-zinc-300"
+                        }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-semibold uppercase tracking-wider">
+                          {msg.role === "user" ? (
+                            <span className="text-indigo-400">You</span>
+                          ) : (
+                            <span className="text-purple-400">
+                              AI Interviewer
+                            </span>
+                          )}
                         </span>
+                        {msg.audioUrl && (
+                          <button
+                            onClick={() => playAudio(msg.audioUrl)}
+                            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                          >
+                            🔊
+                          </button>
+                        )}
                       </div>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                        {msg.text}
+                      </p>
                     </div>
                   </motion.div>
-                )}
+                ))}
+              </AnimatePresence>
 
-                <div ref={transcriptEndRef} />
-              </div>
-            </div>
-          </div>
-
-          {/* Controls Panel */}
-          <div className="space-y-4">
-            {/* Audio Waveform Visualizer */}
-            <div className="glass-card p-6 text-center">
-              <div className="relative w-24 h-24 mx-auto mb-4">
-                {/* AI Avatar with pulse during playback */}
-                <div
-                  className={`w-full h-full rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center ${
-                    audioPlaying ? "glow-accent-strong" : ""
-                  }`}
+              {isLoading && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex justify-start"
                 >
-                  <span className="text-3xl">
-                    {audioPlaying ? "🗣️" : "🤖"}
-                  </span>
-                </div>
-                {audioPlaying && (
-                  <div className="absolute -inset-2 rounded-full border-2 border-indigo-500/30 animate-pulse-ring" />
-                )}
-              </div>
-
-              {/* Audio wave bars */}
-              {(audioPlaying || isRecording) && (
-                <div className="flex items-center justify-center gap-1 h-10 mb-2">
-                  {Array.from({ length: 10 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className={`wave-bar ${
-                        isRecording ? "!bg-red-500" : ""
-                      }`}
-                      style={{
-                        animationDelay: `${i * 0.1}s`,
-                        animationPlayState:
-                          audioPlaying || isRecording ? "running" : "paused",
-                      }}
-                    />
-                  ))}
-                </div>
+                  <div className="bg-zinc-800/50 border border-zinc-700 rounded-2xl px-5 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <span
+                          className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
+                          style={{ animationDelay: "0ms" }}
+                        />
+                        <span
+                          className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
+                          style={{ animationDelay: "150ms" }}
+                        />
+                        <span
+                          className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
+                          style={{ animationDelay: "300ms" }}
+                        />
+                      </div>
+                      <span className="text-xs text-zinc-500">
+                        AI is thinking...
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
               )}
 
-              <p className="text-xs text-zinc-500 mt-2">
-                {audioPlaying
-                  ? "AI is speaking..."
-                  : isRecording
-                  ? "Recording your answer..."
-                  : "Waiting for your response"}
-              </p>
+              <div ref={transcriptEndRef} />
             </div>
-
-            {/* Record Button */}
-            <div className="glass-card p-6 text-center">
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={isRecording ? stopRecording : startRecording}
-                disabled={isLoading || audioPlaying}
-                className={`
-                  w-20 h-20 rounded-full mx-auto flex items-center justify-center transition-all duration-300
-                  ${
-                    isRecording
-                      ? "bg-red-500 shadow-lg shadow-red-500/40 recording-pulse"
-                      : "bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50"
-                  }
-                  ${isLoading || audioPlaying ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
-                `}
-                id="record-btn"
-              >
-                {isRecording ? (
-                  <svg
-                    className="w-8 h-8 text-white"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <rect x="6" y="6" width="12" height="12" rx="2" />
-                  </svg>
-                ) : (
-                  <svg
-                    className="w-8 h-8 text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-                    />
-                  </svg>
-                )}
-              </motion.button>
-
-              <p className="text-sm text-zinc-400 mt-4 font-medium">
-                {isRecording ? "Tap to stop recording" : "Tap to record answer"}
-              </p>
-            </div>
-
-            {/* End Interview Button */}
-            {finalReport && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-              >
-                <button
-                  onClick={onEndInterview}
-                  className="w-full py-3 px-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-medium hover:bg-emerald-500/20 transition-all"
-                  id="view-report-btn"
-                >
-                  📊 View Final Report
-                </button>
-              </motion.div>
-            )}
           </div>
         </div>
-      )}
+
+        {/* Controls Panel */}
+        <div className="space-y-4">
+          {/* Audio Waveform Visualizer */}
+          <div className="glass-card p-6 text-center">
+            <div className="relative w-24 h-24 mx-auto mb-4">
+              {/* AI Avatar with pulse during playback */}
+              <div
+                className={`w-full h-full rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center ${audioPlaying ? "glow-accent-strong" : ""
+                  }`}
+              >
+                <span className="text-3xl">
+                  {audioPlaying ? "🗣️" : "🤖"}
+                </span>
+              </div>
+              {audioPlaying && (
+                <div className="absolute -inset-2 rounded-full border-2 border-indigo-500/30 animate-pulse-ring" />
+              )}
+            </div>
+
+            {/* Audio wave bars */}
+            {(audioPlaying || isRecording) && (
+              <div className="flex items-center justify-center gap-1 h-10 mb-2">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`wave-bar ${isRecording ? "!bg-red-500" : ""
+                      }`}
+                    style={{
+                      animationDelay: `${i * 0.1}s`,
+                      animationPlayState:
+                        audioPlaying || isRecording ? "running" : "paused",
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+
+            <p className="text-xs text-zinc-500 mt-2">
+              {audioPlaying
+                ? "AI is speaking..."
+                : isRecording
+                  ? "Recording your answer..."
+                  : "Waiting for your response"}
+            </p>
+          </div>
+
+          {/* Record Button */}
+          <div className="glass-card p-6 text-center">
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={isRecording ? stopRecording : startRecording}
+              disabled={isLoading || audioPlaying}
+              className={`
+                w-20 h-20 rounded-full mx-auto flex items-center justify-center transition-all duration-300
+                ${isRecording
+                  ? "bg-red-500 shadow-lg shadow-red-500/40 recording-pulse"
+                  : "bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50"
+                }
+                ${isLoading || audioPlaying ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
+              `}
+              id="record-btn"
+            >
+              {isRecording ? (
+                <svg
+                  className="w-8 h-8 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+              ) : (
+                <svg
+                  className="w-8 h-8 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                  />
+                </svg>
+              )}
+            </motion.button>
+
+            <p className="text-sm text-zinc-400 mt-4 font-medium">
+              {isRecording ? "Tap to stop recording" : "Tap to record answer"}
+            </p>
+          </div>
+
+          {/* End Interview Button */}
+          {finalReport && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <button
+                onClick={onEndInterview}
+                className="w-full py-3 px-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-medium hover:bg-emerald-500/20 transition-all"
+                id="view-report-btn"
+              >
+                📊 View Final Report
+              </button>
+            </motion.div>
+          )}
+        </div>
+      </div>
     </motion.div>
   );
 }
